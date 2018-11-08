@@ -3,6 +3,7 @@ var bodyParser = require('body-parser')
 var app = express();
 app.use(bodyParser.raw({ type: '*/*' }))
 const MongoClient = require("mongodb").MongoClient;
+var md5 = require('md5');
 //PASTE YOUR MLAB URI STRING HERE
 const url = "mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
 
@@ -40,7 +41,27 @@ app.post("/addproduct", (req, res) => {
   res.send(JSON.stringify({status: true, message:"Success!"}));
 });
 
-
+app.post("/signup", (req, res) => {
+  var parsed = JSON.parse(req.body);
+  var thisusername = parsed.username;
+  var thispassword = md5(parsed.password);
+  var thisname = parsed.name;
+  var thisaddress = parsed.address;
+  var thisphonenumber = parsed.phonenumber;
+  var thisemail = parsed.email;
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("decodedb");
+    var myobj = { username: thisusername, password: thispassword, name: thisname,
+      address: thisaddress, phonenumber: thisphonenumber, email: thisemail };
+    dbo.collection("users").insertOne(myobj, function(err, res) {
+      if (err) throw err;
+      //res.send("");
+      db.close();
+    });
+  });
+  res.send(JSON.stringify({status: true, message:"Success!"}));
+});
 
 
 
