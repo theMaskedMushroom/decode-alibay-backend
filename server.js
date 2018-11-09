@@ -9,7 +9,7 @@ const url = "mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
 
 var create_UUID = () => {
   var dt = new Date().getTime();
-  var uuid = 'xxx-xxx-4xx-yxx'.replace(/[xy]/g, function(c) {
+  var uuid = 'xxxxxx4xxyxx'.replace(/[xy]/g, function(c) {
       var r = (dt + Math.random()*16)%16 | 0;
       dt = Math.floor(dt/16);
       return (c=='x' ? r :(r&0x3|0x8)).toString(16);
@@ -17,24 +17,27 @@ var create_UUID = () => {
   return uuid;
 }
 
+app.get("/users", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('users').find({}, {
+        projection: { _id: 0, password: 0}
+      }).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, users: result}))
+      })
+  })
+});
+
 app.get("/products", (req, res) => {
   MongoClient.connect(url, (err, db) => {
       if (err) throw err;
       var dbo = db.db('decodedb');
-      dbo.collection('products').aggregate([
-        { $lookup:
-          {
-            from: 'users',
-            localField: 'vendor_id',
-            foreignField: 'id',
-            as: 'seller'
-          }
-        },
-        {
-           $replaceRoot: { newRoot: { $mergeObjects: [ { $arrayElemAt: [ "$seller", 0 ] }, "$$ROOT" ] } }
-        },
-        { $project: { seller: 0 } }
-      ]).toArray((err, result) => {
+      dbo.collection('products').find({}, {
+        projection: { _id: 0}
+      }).toArray((err, result) => {
         if(err) throw err;
         db.close();
         res.send(JSON.stringify({status:true, products: result}))
@@ -126,6 +129,33 @@ app.get("/products", (req, res) => {
             as: 'seller'
           }
         }
+      ]).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, products: result}))
+      })
+  })
+});
+*/
+
+/*
+app.get("/products", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('products').aggregate([
+        { $lookup:
+          {
+            from: 'users',
+            localField: 'vendor_id',
+            foreignField: 'id',
+            as: 'seller'
+          }
+        },
+        {
+           $replaceRoot: { newRoot: { $mergeObjects: [ { $arrayElemAt: [ "$seller", 0 ] }, "$$ROOT" ] } }
+        },
+        { $project: { seller: 0 } }
       ]).toArray((err, result) => {
         if(err) throw err;
         db.close();
