@@ -7,11 +7,37 @@ var md5 = require('md5');
 //PASTE YOUR MLAB URI STRING HERE
 const url = "mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
 
-app.get("/products", (req, res) => {
-  MongoClient.connect(url, (err,db)=>{
+var create_UUID = () => {
+  var dt = new Date().getTime();
+  var uuid = 'xxxxxx4xxyxx'.replace(/[xy]/g, function(c) {
+      var r = (dt + Math.random()*16)%16 | 0;
+      dt = Math.floor(dt/16);
+      return (c=='x' ? r :(r&0x3|0x8)).toString(16);
+  });
+  return uuid;
+}
+
+app.get("/users", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
       if (err) throw err;
-      let dbo = db.db("decodedb")
-      dbo.collection("products").find({}).toArray((err, result) => {
+      var dbo = db.db('decodedb');
+      dbo.collection('users').find({}, {
+        projection: { _id: 0, password: 0}
+      }).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, users: result}))
+      })
+  })
+});
+
+app.get("/products", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('products').find({}, {
+        projection: { _id: 0}
+      }).toArray((err, result) => {
         if(err) throw err;
         db.close();
         res.send(JSON.stringify({status:true, products: result}))
@@ -21,28 +47,30 @@ app.get("/products", (req, res) => {
 
 app.post("/addproduct", (req, res) => {
   var parsed = JSON.parse(req.body);
-  var product_id = parsed.product_id;
-  var product_name = parsed.product_name;
-  var product_price = parsed.product_price;
-  var product_desc = parsed.product_desc;
-  var product_imageUrl = parsed.product_imageUrl;
-  var vendor_id = parsed.vendor_id;
+  var productid = create_UUID();
+  var vendorid = parsed.vendor_id;
+  var product_name = parsed.name;
+  var product_price = parsed.price;
+  var product_desc = parsed.description;
+  var product_imageUrl = parsed.imageUrl;
+  //var vendor_id = parsed.vendor_id;
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
     var dbo = db.db("decodedb");
-    var myobj = { id: product_id, name: product_name, price: product_price,
-      description: product_desc, imageUrl: product_imageUrl, vendor_id: vendor_id };
-    dbo.collection("products").insertOne(myobj, function(err, res) {
+    var myobj = { product_id: productid, vendor_id: vendorid, pname: product_name, price: product_price,
+      description: product_desc, imageUrl: product_imageUrl };
+    dbo.collection("products").insertOne(myobj, function(err, result) {
       if (err) throw err;
       //res.send("");
       db.close();
+      res.send(JSON.stringify({ status: true, message:"Success!" }));
     });
   });
-  res.send(JSON.stringify({status: true, message:"Success!"}));
 });
 
 app.post("/signup", (req, res) => {
   var parsed = JSON.parse(req.body);
+  var thisid = create_UUID();
   var thisusername = parsed.username;
   var thispassword = md5(parsed.password);
   var thisname = parsed.name;
@@ -52,20 +80,87 @@ app.post("/signup", (req, res) => {
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
     var dbo = db.db("decodedb");
-    var myobj = { username: thisusername, password: thispassword, name: thisname,
+    var myobj = { id: thisid, username: thisusername, password: thispassword, name: thisname,
       address: thisaddress, phonenumber: thisphonenumber, email: thisemail };
-    dbo.collection("users").insertOne(myobj, function(err, res) {
+    dbo.collection("users").insertOne(myobj, function(err, result) {
       if (err) throw err;
       //res.send("");
       db.close();
+      res.send(JSON.stringify({status: true, message:"Success!"}));
     });
   });
-  res.send(JSON.stringify({status: true, message:"Success!"}));
 });
 
+app.post("/login", (req, res) => {
+  var parsed = JSON.parse(req.body);
+  var thisusername = parsed.username;
+  //var thispassword = md5(parsed.password);
+  
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("decodedb");
+    //var myobj = { username: thisusername };
+    dbo.collection("users").findOne({}, function(err, result) {
+      if (err) throw err;
+      //res.send("");
+      db.close();
+      res.send(JSON.stringify({status: true, message: "Success!"}));
+    });
+  });
+});
 
 
 
 app.listen(4000, () => { 
   console.log("Server started on port 4000");
 })
+
+/*
+app.get("/products", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('products').aggregate([
+        { $lookup:
+          {
+            from: 'users',
+            localField: 'vendor_id',
+            foreignField: 'id',
+            as: 'seller'
+          }
+        }
+      ]).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, products: result}))
+      })
+  })
+});
+*/
+
+/*
+app.get("/products", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('products').aggregate([
+        { $lookup:
+          {
+            from: 'users',
+            localField: 'vendor_id',
+            foreignField: 'id',
+            as: 'seller'
+          }
+        },
+        {
+           $replaceRoot: { newRoot: { $mergeObjects: [ { $arrayElemAt: [ "$seller", 0 ] }, "$$ROOT" ] } }
+        },
+        { $project: { seller: 0 } }
+      ]).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, products: result}))
+      })
+  })
+});
+*/
