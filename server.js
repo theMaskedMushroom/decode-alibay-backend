@@ -109,7 +109,40 @@ app.post("/login", (req, res) => {
   });
 });
 
+app.post("/postReview", (req, res) => {
+  var parsed = JSON.parse(req.body);
+  var thisid = create_UUID();
+  var thisitem_id = parsed.item_id;
+  var thisusername = parsed.username;
+  var thisreview = parsed.review;
+  var thisrating = parsed.rating
+  
+  MongoClient.connect(url, function(err, db) {
+    if (err) throw err;
+    var dbo = db.db("decodedb");
+    var myobj = { id: thisid, item_id: thisitem_id, username: thisusername,
+      review: thisreview, rating: thisrating };
+    dbo.collection("posts").insertOne(myobj, function(err, result) {
+      if (err) throw err;
+      db.close();
+      res.send(JSON.stringify({status: true, message: "Success!"}));
+    });
+  });
+});
 
+app.get("/getreviews", (req, res) => {
+  MongoClient.connect(url, (err, db) => {
+      if (err) throw err;
+      var dbo = db.db('decodedb');
+      dbo.collection('posts').find({}, {
+        projection: { _id: 0}
+      }).toArray((err, result) => {
+        if(err) throw err;
+        db.close();
+        res.send(JSON.stringify({status:true, reviews: result}))
+      })
+  })
+});
 
 app.listen(4000, () => { 
   console.log("Server started on port 4000");
