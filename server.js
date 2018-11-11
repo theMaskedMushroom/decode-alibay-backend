@@ -1,9 +1,26 @@
-var express = require('express');
-var bodyParser = require('body-parser')
-var app = express();
-app.use(bodyParser.raw({ type: '*/*' }))
-const MongoClient = require("mongodb").MongoClient;
 var md5 = require('md5');
+let uuid = require('uuid/v1');
+var express = require('express');
+var bodyParser = require('body-parser');
+const MongoClient = require("mongodb").MongoClient;
+
+let multer = require('multer');
+let multerStorage = multer.diskStorage({
+
+  destination: '../frontend/public/pictures/',
+
+  filename: function (req, file, callback) {
+    callback(null, uuid() + '_' + file.originalname)
+  }
+})
+
+const upload = multer({ storage: multerStorage });
+
+
+var app = express();
+app.use(bodyParser.raw({ type: ['application/*','text/*'] }));
+
+
 //PASTE YOUR MLAB URI STRING HERE
 const url = "mongodb://alibay:alibay@localhost:27017/alibay";//"mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
 const useDb = 'alibay';
@@ -46,29 +63,6 @@ app.get("/products", (req, res) => {
   })
 });
 
-app.post("/addproduct", (req, res) => {
-  var parsed = JSON.parse(req.body);
-  var productid = create_UUID();
-  var vendorid = parsed.vendor_id;
-  var product_name = parsed.name;
-  var product_price = parsed.price;
-  var product_desc = parsed.description;
-  var product_imageUrl = parsed.imageUrl;
-  //var vendor_id = parsed.vendor_id;
-  MongoClient.connect(url, function(err, db) {
-    if (err) throw err;
-    var dbo = db.db(useDb);
-    var myobj = { product_id: productid, vendor_id: vendorid, pname: product_name, price: product_price,
-      description: product_desc, imageUrl: product_imageUrl };
-    dbo.collection("products").insertOne(myobj, function(err, result) {
-      if (err) throw err;
-      //res.send("");
-      db.close();
-      res.send(JSON.stringify({ status: true, message:"Success!" }));
-    });
-  });
-});
-
 app.post("/deleteproduct", function(req, res){
 
   let parsedObj = JSON.parse(req.body);
@@ -100,6 +94,83 @@ app.post("/deleteproduct", function(req, res){
     })
   })
 });
+
+app.post('/updateproduct', upload.single('image'), function(req, res){
+
+  // Create the object we'll using to update the values
+  let updateObj = {
+    vendor_id: req.body.vendor_id,
+    pname: req.body.pname,
+    description: req.body.description,
+    price: parseInt(req.body.price),
+  }
+
+  if (req.file)
+  {
+    updateObj.imageUrl = 'pictures/' + req.file.filename;
+  }
+
+  // Now let's connect to the db and update the record (req.body.product_id)
+  MongoClient.connect(url, function(err, client){
+    
+    if (err) throw err;// this will make the frontend choke with something like <HTML>...<h1>Error</h1>
+
+    let db = client.db(useDb);
+
+    // update the document with productId in the product collection
+    db.collection('products').updateOne({"product_id": req.body.product_id},{$set:updateObj}, function(err){
+      if (err) throw err;
+    });
+
+    // Then fetch all products and send those back to the frontend for updated display
+    db.collection('products').find({}, {projection: {_id:0}}).toArray(function(err, result){
+      if (err) throw err;
+      
+      // Ok, done with the db connection
+      client.close();
+
+      // send back the results as an array of product objects.
+      res.send(JSON.stringify({products: result}));
+    })
+  })
+})
+
+app.post('/addproduct', upload.single('image'), function(req, res){
+
+  // Create the object we'll using to insert our new document
+  let newDocument = {
+    product_id: uuid(),
+    vendor_id: req.body.vendor_id,
+    pname: req.body.pname,
+    description: req.body.description,
+    price: parseInt(req.body.price),
+    imageUrl: 'pictures/' + req.file.filename
+  }
+
+  // Now let's connect to the db and insert the document
+  MongoClient.connect(url, function(err, client){
+    
+    if (err) throw err;// this will make the frontend choke with something like <HTML>...<h1>Error</h1>
+
+    let db = client.db(useDb);
+
+    // update the document with productId in the product collection
+    db.collection('products').insertOne(newDocument, function(err){
+      if (err) throw err;
+    });
+
+    // Then fetch all products and send those back to the frontend for updated display
+    db.collection('products').find({}, {projection: {_id:0}}).toArray(function(err, result){
+      if (err) throw err;
+      
+      // Ok, done with the db connection
+      client.close();
+
+      // send back the results as an array of product objects.
+      res.send(JSON.stringify({products: result}));
+    })
+  })
+})
 
 app.post("/signup", (req, res) => {
   var parsed = JSON.parse(req.body);
