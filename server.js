@@ -1,5 +1,6 @@
 var md5 = require('md5');
 let uuid = require('uuid/v1');
+let fs = require('fs');
 var express = require('express');
 var bodyParser = require('body-parser');
 const MongoClient = require("mongodb").MongoClient;
@@ -80,6 +81,18 @@ app.post("/deleteproduct", function(req, res){
       if (err) throw err;
 
       if (!result.deletedCount === 1) throw new Error('delete count was not === 1 ...');// just to be safe
+
+      // Ok, so the document was deleted.
+      // We need to delete the image that was associated with it
+      // Use a try/catch block to be on the safe side (assume catch is that the image didn't exist...)
+      try
+      {
+        fs.unlinkSync('../frontend/public/' + parsedObj.oldImage);
+      }
+      catch (err)
+      {
+        // nothing here (assume the file didn't exist...)
+      }
     });
 
     // Then fetch all products and send those back to the frontend for updated display
@@ -107,7 +120,18 @@ app.post('/updateproduct', upload.single('image'), function(req, res){
 
   if (req.file)
   {
+    // We'll need to update the picture's url
     updateObj.imageUrl = 'pictures/' + req.file.filename;
+
+    // and delete the previous file (don't bust our storage!!!)
+    // use a try/catch to make sure we're on the cool side of things (on catch, nothing to delete...)
+    try{
+      fs.unlinkSync('../frontend/public/' + req.body.oldImage);
+    }
+    catch (err)
+    {
+      // nothing here. We'll assume the file didn't exist
+    }
   }
 
   // Now let's connect to the db and update the record (req.body.product_id)
