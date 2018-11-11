@@ -5,7 +5,8 @@ app.use(bodyParser.raw({ type: '*/*' }))
 const MongoClient = require("mongodb").MongoClient;
 var md5 = require('md5');
 //PASTE YOUR MLAB URI STRING HERE
-const url = "mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
+const url = "mongodb://alibay:alibay@localhost:27017/alibay";//"mongodb://admin:password1@ds153093.mlab.com:53093/decodedb";
+const useDb = 'alibay';
 
 var create_UUID = () => {
   var dt = new Date().getTime();
@@ -20,7 +21,7 @@ var create_UUID = () => {
 app.get("/users", (req, res) => {
   MongoClient.connect(url, (err, db) => {
       if (err) throw err;
-      var dbo = db.db('decodedb');
+      var dbo = db.db(useDb);
       dbo.collection('users').find({}, {
         projection: { _id: 0, password: 0}
       }).toArray((err, result) => {
@@ -34,7 +35,7 @@ app.get("/users", (req, res) => {
 app.get("/products", (req, res) => {
   MongoClient.connect(url, (err, db) => {
       if (err) throw err;
-      var dbo = db.db('decodedb');
+      var dbo = db.db(useDb);
       dbo.collection('products').find({}, {
         projection: { _id: 0}
       }).toArray((err, result) => {
@@ -56,7 +57,7 @@ app.post("/addproduct", (req, res) => {
   //var vendor_id = parsed.vendor_id;
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
-    var dbo = db.db("decodedb");
+    var dbo = db.db(useDb);
     var myobj = { product_id: productid, vendor_id: vendorid, pname: product_name, price: product_price,
       description: product_desc, imageUrl: product_imageUrl };
     dbo.collection("products").insertOne(myobj, function(err, result) {
@@ -66,6 +67,38 @@ app.post("/addproduct", (req, res) => {
       res.send(JSON.stringify({ status: true, message:"Success!" }));
     });
   });
+});
+
+app.post("/deleteproduct", function(req, res){
+
+  let parsedObj = JSON.parse(req.body);
+  let productId = parsedObj.product_id;
+
+  // Connedt to the db
+  MongoClient.connect(url, function(err, client){
+    
+    if (err) throw err;// this will make the frontend choke with something like <HTML>...<h1>Error</h1>
+
+    let db = client.db(useDb);
+
+    // delete the document with productId in the product collection
+    db.collection('products').deleteOne({"product_id":productId}, function(err,result){
+      if (err) throw err;
+
+      if (!result.deletedCount === 1) throw new Error('delete count was not === 1 ...');// just to be safe
+    });
+
+    // Then fetch all products and send those back to the frontend for updated display
+    db.collection('products').find({}, {projection: {_id:0}}).toArray(function(err, result){
+      if (err) throw err;
+      
+      // Ok, done with the db connection
+      client.close();
+
+      // send back the results as an array of product objects.
+      res.send(JSON.stringify({products: result}));
+    })
+  })
 });
 
 app.post("/signup", (req, res) => {
@@ -79,7 +112,7 @@ app.post("/signup", (req, res) => {
   var thisemail = parsed.email;
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
-    var dbo = db.db("decodedb");
+    var dbo = db.db(useDb);
     var myobj = { id: thisid, username: thisusername, password: thispassword, name: thisname,
       address: thisaddress, phonenumber: thisphonenumber, email: thisemail };
     dbo.collection("users").insertOne(myobj, function(err, result) {
@@ -98,7 +131,7 @@ app.post("/login", (req, res) => {
   
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
-    var dbo = db.db("decodedb");
+    var dbo = db.db(useDb);
     //var myobj = { username: thisusername };
     dbo.collection("users").findOne({}, function(err, result) {
       if (err) throw err;
@@ -119,7 +152,7 @@ app.post("/postReview", (req, res) => {
   
   MongoClient.connect(url, function(err, db) {
     if (err) throw err;
-    var dbo = db.db("decodedb");
+    var dbo = db.db(useDb);
     var myobj = { id: thisid, item_id: thisitem_id, username: thisusername,
       review: thisreview, rating: thisrating };
     dbo.collection("posts").insertOne(myobj, function(err, result) {
@@ -133,7 +166,7 @@ app.post("/postReview", (req, res) => {
 app.get("/getreviews", (req, res) => {
   MongoClient.connect(url, (err, db) => {
       if (err) throw err;
-      var dbo = db.db('decodedb');
+      var dbo = db.db(useDb);
       dbo.collection('posts').find({}, {
         projection: { _id: 0}
       }).toArray((err, result) => {
