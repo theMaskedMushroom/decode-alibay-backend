@@ -10,9 +10,7 @@ let multerStorage = multer.diskStorage({
 
   destination: '../frontend/public/pictures/',
 
-  filename: function (req, file, callback) {
-    callback(null, uuid() + '_' + file.originalname)
-  }
+  filename: function (req, file, callback) { callback(null, uuid() + '_' + file.originalname) }
 })
 
 const upload = multer({ storage: multerStorage });
@@ -178,7 +176,7 @@ app.post('/addproduct', upload.single('image'), function(req, res){
 
     let db = client.db(useDb);
 
-    // update the document with productId in the product collection
+    // insert the new document in the product collection
     db.collection('products').insertOne(newDocument, function(err){
       if (err) throw err;
     });
